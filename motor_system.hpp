@@ -80,7 +80,7 @@ private:
         return true;
     }
 
-    MotorAxis*              all_motors_[kMaxMotors] = {};
+    Motor*                  all_motors_[kMaxMotors] = {};
     std::size_t             motor_count_            = 0;
 
     // Both buffers live here (or place them in a specific section via linker).
