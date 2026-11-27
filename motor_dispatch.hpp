@@ -20,8 +20,10 @@ struct MotorDispatchList {
     std::size_t count{0};
 };
 
-// Build a topological dispatch order using Kahn's algorithm.
+// Build a topological dispatch order using Kahn's algorithm (topo_sort.hpp).
 // all_motors[0..n-1] are all known motors.
+// Dependencies on motors that are not in all_motors are ignored.
+// The same dependency listed twice is fine (it is not mistaken for a cycle).
 // On success  : list is filled in order and true is returned.
 // On cycle    : list is left unchanged and false is returned.
 //               The caller should keep the current active buffer and
