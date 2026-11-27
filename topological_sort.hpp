@@ -6,6 +6,8 @@
 //  トポロジカルソート（Kahn 法）
 //
 //  nodes[0..n-1] を、依存先が先に来る順番に並べて out[0..n-1] に入れる。（B が A に依存するなら A → B の順）
+//    使い方: topological_sort<最大数>(n , nodes , out)
+//    nodes は T* の配列。const T* の配列も渡せる（そのとき T = const クラス で、out も const T* の配列）。
 //
 //  T（ノードのクラス）には、次の2つの関数があればよい。（基底クラスの継承や virtual は要らない）
 //    dependency_count()   : 依存の本数
@@ -30,7 +32,7 @@
 //==================================================================================================
 
 template <int MaxN , class T>
-bool topo_sort(T* const* nodes , int n , T** out) noexcept
+bool topological_sort(int n , T* const nodes[] , T* out[]) noexcept
 {
 	if( (n < 0) || (n > MaxN) )	{	return false;	}
 
@@ -47,7 +49,7 @@ bool topo_sort(T* const* nodes , int n , T** out) noexcept
 			for(int k = 0 ; k < n ; ++k){
 				if(nodes[k] == nodes[i]->dependency(d))	{	found = true;	break;	}
 			}
-			assert(found && "topo_sort: dependency is not in nodes");
+			assert(found && "topological_sort: dependency is not in nodes");
 		}
 	}
 #endif
