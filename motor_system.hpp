@@ -65,26 +65,30 @@ public:
         return true;
     }
 
-    // ISR side: call once at the start of each 1 ms cycle.
+    // ISR side: call once at the start of each 1 ms cycle (after init()).
     void isr_cycle() noexcept {
-        const MotorDispatchList* list = dispatch_db_.active();  // read once
-        for (std::size_t i = 0; i < list->count; ++i)
-            list->motors[i]->calculate();
+        Motor* const* order = dispatch_db_.active();  // read once
+        for (std::size_t i = 0; i < motor_count_; ++i)
+            order[i]->calculate();
     }
 
 private:
     bool rebuild_spare_and_commit() noexcept {
-        if (!build_dispatch_order(dispatch_db_.spare(), all_motors_, motor_count_))
-            return false;  // cycle detected, spare is untouched
+        if (!build_dispatch_order(motor_count_, all_motors_, dispatch_db_.spare()))
+            return false;  // cycle detected: spare is not committed, active is unchanged
         dispatch_db_.commit();
         return true;
     }
 
     Motor*                  all_motors_[kMaxMotors] = {};
+    // Number of motors. Every motor is always in the order, so this is also the
+    // length of order_a_ / order_b_. It changes only in add_motor(), before the
+    // ISR starts, so it does not need to be double-buffered.
     std::size_t             motor_count_            = 0;
 
+    // The dispatch order: plain Motor* arrays, double-buffered.
     // Both buffers live here (or place them in a specific section via linker).
-    MotorDispatchList       buf_a_;
-    MotorDispatchList       buf_b_;
-    DoubleBuffer<MotorDispatchList> dispatch_db_{&buf_a_, &buf_b_};
+    Motor*                  order_a_[kMaxMotors]    = {};
+    Motor*                  order_b_[kMaxMotors]    = {};
+    DoubleBuffer<Motor*>    dispatch_db_{order_a_, order_b_};
 };

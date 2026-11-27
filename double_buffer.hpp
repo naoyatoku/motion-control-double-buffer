@@ -18,18 +18,18 @@
 // touching spare() again, because the ISR may still be reading what was
 // just swapped out.
 //
-// Usage — plain struct (e.g. MotorDispatchList):
+// Usage — plain array (e.g. the motor dispatch order, Motor*[kMaxMotors]):
 //
-//   MotorDispatchList buf_a, buf_b;
-//   DoubleBuffer<MotorDispatchList> db(&buf_a, &buf_b);
+//   Motor* order_a[kMaxMotors];
+//   Motor* order_b[kMaxMotors];
+//   DoubleBuffer<Motor*> db(order_a, order_b);     // T = Motor*, buffers are the arrays
 //
 //   // main loop, when dependency changes:
-//   build_dispatch_order(db.spare(), motors, n);
-//   db.commit();
+//   if (build_dispatch_order(n, motors, db.spare())) db.commit();
 //
 //   // ISR:
-//   auto* list = db.active();   // read once
-//   for (size_t i = 0; i < list->count; ++i) list->motors[i]->calculate();
+//   Motor* const* order = db.active();   // read once
+//   for (size_t i = 0; i < n; ++i) order[i]->calculate();
 //
 // Usage — placement new (e.g. PulseGeneratorSet):
 //

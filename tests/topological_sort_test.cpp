@@ -1,4 +1,4 @@
-//topological_sort と build_dispatch_order のテスト。
+//topological_sort、build_dispatch_order、MotorSystem のテスト。
 //
 //  ビルドと実行（リポジトリの一番上で）:
 //    g++ -std=c++11 -Wall -Wextra -I. tests/topological_sort_test.cpp motor_dispatch.cpp -o tst.exe && ./tst.exe
@@ -185,17 +185,58 @@ static void test_dispatch()
 	Motor* da[] = { &b };	a.set_deps(da , 1);										//a は b に依存
 	Motor* db[] = { &c };	b.set_deps(db , 1);										//b は c に依存
 	Motor* all[] = { &a , &b , &c };
-	MotorDispatchList list;
-	list.count = 99;
-	bool ok = build_dispatch_order(&list , all , 3);
-	check(ok && list.count == 3 && list.motors[0] == &c && list.motors[1] == &b && list.motors[2] == &a , "dispatch chain");
-	printf("  chain c->b->a                      %s\n" , (ok && list.motors[0] == &c && list.motors[2] == &a) ? "ok" : "NG");
+	Motor* order[kMaxMotors];
+	bool ok = build_dispatch_order(3 , all , order);
+	check(ok && order[0] == &c && order[1] == &b && order[2] == &a , "dispatch chain");
+	printf("  chain c->b->a                      %s\n" , (ok && order[0] == &c && order[1] == &b && order[2] == &a) ? "ok" : "NG");
 
 	Motor* dc[] = { &a };	c.set_deps(dc , 1);										//c も a に依存 → 循環
-	list.count = 99;
-	ok = build_dispatch_order(&list , all , 3);
-	check(!ok && list.count == 99 , "dispatch cycle keeps list");
-	printf("  cycle -> false, list unchanged     %s\n" , (!ok && list.count == 99) ? "ok" : "NG");
+	ok = build_dispatch_order(3 , all , order);
+	check(!ok , "dispatch cycle");
+	printf("  cycle -> false                     %s\n" , !ok ? "ok" : "NG");
+}
+
+//---- 5. MotorSystem（ダブルバッファで順番を切り替える）----
+//  calculate() が呼ばれた順を記録する軸で、isr_cycle() の順番を確かめる。
+static char g_calls[16];
+static int  g_ncalls = 0;
+struct LoggingAxis : MotorAxis {
+	char name;
+	void calculate() noexcept override	{	g_calls[g_ncalls++] = name;	}
+};
+static const char* run_isr(MotorSystem& sys)
+{
+	g_ncalls = 0;
+	sys.isr_cycle();
+	g_calls[g_ncalls] = 0;
+	return g_calls;
+}
+static void expect_isr(MotorSystem& sys , const char* title , const char* expected)
+{
+	const char* got = run_isr(sys);
+	const bool ok = (strcmp(got , expected) == 0);
+	printf("  %-34s -> %-6s %s\n" , title , got , ok ? "ok" : "NG");
+	check(ok , title);
+}
+static void test_system()
+{
+	printf("[MotorSystem]\n");
+	static MotorSystem sys;
+	static LoggingAxis x , y , z;
+	x.name = 'X';	y.name = 'Y';	z.name = 'Z';
+	sys.add_motor(&z);	sys.add_motor(&y);	sys.add_motor(&x);
+	check(sys.init() , "init");
+	expect_isr(sys , "no deps (registration order)" , "ZYX");
+
+	check(sys.set_dependency(&z , &y) , "Z follows Y");
+	check(sys.set_dependency(&y , &x) , "Y follows X");
+	expect_isr(sys , "X -> Y -> Z" , "XYZ");
+
+	check(!sys.set_dependency(&x , &z) , "cycle rejected");
+	expect_isr(sys , "after rejected cycle (unchanged)" , "XYZ");
+
+	check(sys.set_dependency(&z , nullptr) , "Z independent");
+	expect_isr(sys , "Z independent again" , "ZXY");
 }
 
 int main()
@@ -204,6 +245,7 @@ int main()
 	test_types();
 	test_random();
 	test_dispatch();
+	test_system();
 	if(g_fail == 0)	{	printf("all passed\n");	return 0;	}
 	printf("%d failed\n" , g_fail);
 	return 1;

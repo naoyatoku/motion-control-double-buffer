@@ -2,31 +2,32 @@
 #include "motor_dispatch.hpp"
 
 // ---------------------------------------------------------------------------
-// Example 1: MotorDispatchList  (plain struct, no placement new needed)
+// Example 1: dispatch order  (plain Motor* arrays, no placement new needed)
 // ---------------------------------------------------------------------------
 
 // Place both buffers in the desired memory region via linker attributes.
 // Here they are in TCM for fast ISR access.
-static MotorDispatchList dispatch_buf_a __attribute__((section(".tcm_data")));
-static MotorDispatchList dispatch_buf_b __attribute__((section(".tcm_data")));
+static Motor* dispatch_order_a[kMaxMotors] __attribute__((section(".tcm_data")));
+static Motor* dispatch_order_b[kMaxMotors] __attribute__((section(".tcm_data")));
 
-static DoubleBuffer<MotorDispatchList> dispatch_db(&dispatch_buf_a, &dispatch_buf_b);
+static DoubleBuffer<Motor*> dispatch_db(dispatch_order_a, dispatch_order_b);
+
+// All motors, and how many. Every motor is always in the order, so the order
+// has motor_count entries. motor_count changes only before the ISR starts.
+static Motor* all_motors[kMaxMotors];
+static std::size_t motor_count = 0;
 
 // Called from the 1 ms ISR:
 void isr_1ms() {
-    const MotorDispatchList* list = dispatch_db.active();  // read once
-    for (std::size_t i = 0; i < list->count; ++i) {
-        list->motors[i]->calculate();
+    Motor* const* order = dispatch_db.active();  // read once
+    for (std::size_t i = 0; i < motor_count; ++i) {
+        order[i]->calculate();
     }
 }
 
 // Called from the main loop when a dependency changes:
-static Motor* all_motors[kMaxMotors];
-static std::size_t motor_count = 0;
-
 void on_dependency_changed() {
-    MotorDispatchList* s = dispatch_db.spare();
-    if (!build_dispatch_order(s, all_motors, motor_count)) {
+    if (!build_dispatch_order(motor_count, all_motors, dispatch_db.spare())) {
         // Circular dependency — keep the current active buffer, report error.
         return;
     }
