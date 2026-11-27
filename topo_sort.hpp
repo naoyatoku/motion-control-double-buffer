@@ -8,12 +8,11 @@
 //  T（ノードのクラス）には、次の2つの関数があればよい。（基底クラスの継承や virtual は要らない）
 //    dependency_count()   : 依存の本数
 //    dependency(d)        : d 本目の依存先のポインタ
-//  依存先は、すべて nodes に入っていること。
+//  nodes に入っていないノードへの依存は無視する。
 //
 //  戻り値
 //    成功        : true
 //    循環がある  : false。（out は途中まで書き換わっているので使わないこと）
-//    nodes に無い依存先がある : false。（その依存先は出てこないので、待ちが 0 にならない）
 //    n > MaxN    : false。
 //
 //  やり方
@@ -32,10 +31,15 @@ bool topo_sort(T* const* nodes , int n , T** out) noexcept
 {
 	if( (n < 0) || (n > MaxN) )	{	return false;	}
 
-	//1. あと何本待っているか
+	//1. あと何本待っているか。（nodes に入っている依存先だけ数える）
 	int in_degree[MaxN] = {};
 	for(int i = 0 ; i < n ; ++i){
-		in_degree[i] = (int)nodes[i]->dependency_count();
+		const int nd = (int)nodes[i]->dependency_count();
+		for(int d = 0 ; d < nd ; ++d){
+			for(int k = 0 ; k < n ; ++k){
+				if(nodes[k] == nodes[i]->dependency(d))	{	++in_degree[i];	break;	}
+			}
+		}
 	}
 
 	//2. 待ちのないノードをキューに入れる
