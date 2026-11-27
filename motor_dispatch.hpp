@@ -22,7 +22,8 @@ struct MotorDispatchList {
 
 // Build a topological dispatch order using Kahn's algorithm (topo_sort.hpp).
 // all_motors[0..n-1] are all known motors.
-// Dependencies on motors that are not in all_motors are ignored.
+// Every dependency must be in all_motors (checked with assert; with NDEBUG a
+// missing one makes it return false, the same as a cycle).
 // The same dependency listed twice is fine (it is not mistaken for a cycle).
 // On success  : list is filled in order and true is returned.
 // On cycle    : list is left unchanged and false is returned.

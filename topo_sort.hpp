@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+
 //==================================================================================================
 //  トポロジカルソート（Kahn 法）
 //
@@ -8,7 +10,8 @@
 //  T（ノードのクラス）には、次の2つの関数があればよい。（基底クラスの継承や virtual は要らない）
 //    dependency_count()   : 依存の本数
 //    dependency(d)        : d 本目の依存先のポインタ
-//  nodes に入っていないノードへの依存は無視する。
+//  依存先は、すべて nodes に登録されていること。登録されていない依存先があると assert で止める。
+//  （NDEBUG でビルドして assert を外した場合は、その依存先が出てこないので待ちが 0 にならず、false を返す）
 //
 //  戻り値
 //    成功        : true
@@ -31,16 +34,23 @@ bool topo_sort(T* const* nodes , int n , T** out) noexcept
 {
 	if( (n < 0) || (n > MaxN) )	{	return false;	}
 
-	//1. あと何本待っているか。（nodes に入っている依存先だけ数える）
+	//1. あと何本待っているか
 	int in_degree[MaxN] = {};
 	for(int i = 0 ; i < n ; ++i){
-		const int nd = (int)nodes[i]->dependency_count();
-		for(int d = 0 ; d < nd ; ++d){
+		in_degree[i] = (int)nodes[i]->dependency_count();
+	}
+#ifndef NDEBUG
+	//依存先が、すべて nodes に登録されているか
+	for(int i = 0 ; i < n ; ++i){
+		for(int d = 0 ; d < in_degree[i] ; ++d){
+			bool found = false;
 			for(int k = 0 ; k < n ; ++k){
-				if(nodes[k] == nodes[i]->dependency(d))	{	++in_degree[i];	break;	}
+				if(nodes[k] == nodes[i]->dependency(d))	{	found = true;	break;	}
 			}
+			assert(found && "topo_sort: dependency is not in nodes");
 		}
 	}
+#endif
 
 	//2. 待ちのないノードをキューに入れる
 	int head = 0;											//次に出す位置
